@@ -29,13 +29,16 @@ async fn handle_conn(stream: TcpStream) {
     let mut handler = StreamHandler::new(stream);
     loop {
         let command = handler.read_request().await.unwrap();
+        let mut storage: std::collections::HashMap<String, String> = std::collections::HashMap::new();
 
         let response = if let Some(command) = command {
             let (cmd, args) = extract_command(command).unwrap();
             match cmd.as_str() {
                 "PING" => Value::SimpleString("PONG".to_string()),
                 "ECHO" => args.first().unwrap().clone(),
-                _ => Value::SimpleString("OK".to_string()),
+                "SET" => set(&mut storage, unpack_bulk_str(args[0].clone()).unwrap(), unpack_bulk_str(args[1].clone()).unwrap()),
+                "GET" => get(&storage, unpack_bulk_str(args[0].clone()).unwrap()),
+                c => panic!("Cannot handle command {}", c),
             }
         } else {
             break;
@@ -43,6 +46,18 @@ async fn handle_conn(stream: TcpStream) {
 
         println!("response: {:?}", response);
         handler.write_response(response).await.unwrap();
+    }
+}
+
+fn set(storage: &mut std::collections::HashMap<String, String>, key: String, value: String) -> Value {
+    storage.insert(key, value);
+    Value::SimpleString("OK".to_string())
+}
+
+fn get(storage: &std::collections::HashMap<String, String>, key: String) -> Value {
+    match storage.get(&key) {
+        Some(v) => Value::BulkString(v.to_string()),
+        None => Value::Null,
     }
 }
 
