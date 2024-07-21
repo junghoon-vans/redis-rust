@@ -1,5 +1,5 @@
 use std::{
-    io::{Write},
+    io::{Read, Write},
     net::TcpListener,
 };
 
@@ -10,7 +10,20 @@ fn main() {
         match stream {
             Ok(mut stream) => {
                 println!("accepted new connection");
-                stream.write(b"+PONG\r\n").unwrap();
+
+                let mut buf = [0; 512];
+                loop {
+                    match stream.read(&mut buf) {
+                        Ok(0) => break,
+                        Err(e) => {
+                            println!("An error occurred while reading: {}:", e);
+                            break;
+                        }
+                        _ => {},
+                    }
+
+                    stream.write(b"+PONG\r\n").unwrap();
+                }
             }
             Err(e) => {
                 println!("error: {}", e);
