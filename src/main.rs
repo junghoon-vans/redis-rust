@@ -27,9 +27,10 @@ async fn main() {
 
 async fn handle_conn(stream: TcpStream) {
     let mut handler = StreamHandler::new(stream);
+    let mut storage: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+
     loop {
         let command = handler.read_request().await.unwrap();
-        let mut storage: std::collections::HashMap<String, String> = std::collections::HashMap::new();
 
         let response = if let Some(command) = command {
             let (cmd, args) = extract_command(command).unwrap();
