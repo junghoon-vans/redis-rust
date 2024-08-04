@@ -6,7 +6,8 @@ mod storage;
 
 #[tokio::main]
 async fn main() {
-    let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
+    let port = std::env::args().nth(2).unwrap_or("6379".to_string());
+    let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await.unwrap();
 
     loop {
         let stream = listener.accept().await;
