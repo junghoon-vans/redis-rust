@@ -65,6 +65,7 @@ async fn handle_conn(stream: TcpStream) {
                         None => Value::Null,
                     }
                 }
+                "INFO" => Value::BulkString("role:master".to_string()),
                 c => panic!("Cannot handle command {}", c),
             }
         } else {
