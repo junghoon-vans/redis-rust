@@ -2,6 +2,7 @@ use tokio::net::{TcpListener, TcpStream};
 
 use stream::{StreamHandler, Value};
 mod stream;
+mod storage;
 
 #[tokio::main]
 async fn main() {
@@ -27,7 +28,7 @@ async fn main() {
 
 async fn handle_conn(stream: TcpStream) {
     let mut handler = StreamHandler::new(stream);
-    let mut storage: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut stg = storage::Storage::new();
 
     loop {
         let command = handler.read_request().await.unwrap();
@@ -37,8 +38,32 @@ async fn handle_conn(stream: TcpStream) {
             match cmd.as_str() {
                 "PING" => Value::SimpleString("PONG".to_string()),
                 "ECHO" => args.first().unwrap().clone(),
-                "SET" => set(&mut storage, unpack_bulk_str(args[0].clone()).unwrap(), unpack_bulk_str(args[1].clone()).unwrap()),
-                "GET" => get(&storage, unpack_bulk_str(args[0].clone()).unwrap()),
+                "SET" => {
+                    let key = unpack_bulk_str(args[0].clone()).unwrap();
+                    let value = unpack_bulk_str(args[1].clone()).unwrap();
+
+                    if args.len() > 3 {
+                        let subcommand = unpack_bulk_str(args[2].clone()).unwrap();
+                        match subcommand.as_str() {
+                            "px" => {
+                                let expires = unpack_bulk_str(args[3].clone()).unwrap().parse().unwrap();
+                                stg.set(&key, &value, expires);
+                            }
+                            _ => panic!("Cannot handle subcommand {}", subcommand),
+                        }
+                    }
+                    else {
+                        stg.set(&key, &value, 0);
+                    }
+                    Value::SimpleString("OK".to_string())
+                }
+                "GET" => {
+                    let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
+                    match stg.get(&key) {
+                        Some(item) => Value::BulkString(item.value.clone()),
+                        None => Value::Null,
+                    }
+                }
                 c => panic!("Cannot handle command {}", c),
             }
         } else {
@@ -47,18 +72,6 @@ async fn handle_conn(stream: TcpStream) {
 
         println!("response: {:?}", response);
         handler.write_response(response).await.unwrap();
-    }
-}
-
-fn set(storage: &mut std::collections::HashMap<String, String>, key: String, value: String) -> Value {
-    storage.insert(key, value);
-    Value::SimpleString("OK".to_string())
-}
-
-fn get(storage: &std::collections::HashMap<String, String>, key: String) -> Value {
-    match storage.get(&key) {
-        Some(v) => Value::BulkString(v.to_string()),
-        None => Value::Null,
     }
 }
 
